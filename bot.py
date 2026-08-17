@@ -5,6 +5,7 @@ import threading
 import requests
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.helpers import escape_markdown
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
 # ============ LOGGING ============
@@ -89,13 +90,19 @@ def parse_names(text):
 
 # ============ COMMANDS ============
 
+async def log_all_updates(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Debug: logs every incoming update so we can confirm Telegram is reaching this bot."""
+    logger.info(f"📩 Update received: {update}")
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("➡️ /start handler triggered")
     user = update.effective_user
+    safe_name = escape_markdown(user.first_name or "there", version=1)
 
     welcome_message = f"""
 👋 *Welcome to Business Name Generator Bot!*
 
-Hi {user.first_name}! I'm here to help you create creative business names.
+Hi {safe_name}! I'm here to help you create creative business names.
 
 🚀 *How to use me:*
 Simply send me a description of your business, and I'll generate 10 creative name ideas!
@@ -346,6 +353,7 @@ async def run_bot_async():
     app.add_handler(CommandHandler("about", about_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_callback))
+    app.add_handler(MessageHandler(filters.ALL, log_all_updates), group=-1)
     app.add_error_handler(error_handler)
 
     await app.initialize()
