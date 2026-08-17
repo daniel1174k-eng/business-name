@@ -11,7 +11,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Get tokens from environment variables (set in Render dashboard)
+# Get tokens from environment variables
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
 
@@ -217,7 +217,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle business description messages."""
     description = update.message.text.strip()
 
-    # Check if user has API key issue
     if not HUGGINGFACE_API_KEY or HUGGINGFACE_API_KEY == 'hf_YOUR_TOKEN_HERE':
         await update.message.reply_text(
             "❌ *Bot not configured properly!*\n\nThe Hugging Face API key is missing.",
@@ -225,14 +224,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Send "thinking" message
     thinking_message = await update.message.reply_text(
         "🧠 *Generating creative business names...*\n\nThis may take 10-20 seconds...",
         parse_mode='Markdown'
     )
 
     try:
-        # Build prompt
         prompt = f"""<|system|>
 You are a creative business name generator. Generate unique, catchy, and memorable business names.
 
@@ -246,13 +243,9 @@ Here are 10 creative business names for "{description}":
 
 """
 
-        # Get response from Hugging Face
         raw_response = call_huggingface_api(prompt)
-        
-        # Parse names
         names_list = parse_names(raw_response)
 
-        # Format response
         if names_list:
             response_text = "✨ *Your Business Name Ideas:*\n\n"
             
@@ -360,7 +353,19 @@ Ready? Describe your business!
 
 def main():
     """Start the bot."""
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    try:
+        # Try the new way (for newer versions)
+        application = Application.builder().token(TELEGRAM_TOKEN).build()
+    except AttributeError:
+        # Fallback for older versions
+        try:
+            from telegram.ext import Updater
+            updater = Updater(TELEGRAM_TOKEN)
+            application = updater.application
+        except Exception as e:
+            print(f"Error creating application: {e}")
+            # Final fallback
+            application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
