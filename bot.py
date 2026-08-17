@@ -1,21 +1,24 @@
 import os
 import logging
+import asyncio
+import threading
 import requests
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
-# Enable logging
+# ============ LOGGING ============
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Get tokens from environment variables
+# ============ ENVIRONMENT VARIABLES ============
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
 
-# Hugging Face API setup
+# ============ HUGGING FACE API ============
 API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1"
 headers = {
     "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
@@ -84,10 +87,11 @@ def parse_names(text):
 
     return names if names else [{'name': text[:150] + '...', 'reasoning': 'Generated names'}]
 
+# ============ COMMANDS ============
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a message when /start is issued."""
     user = update.effective_user
-    
+
     welcome_message = f"""
 👋 *Welcome to Business Name Generator Bot!*
 
@@ -98,7 +102,7 @@ Simply send me a description of your business, and I'll generate 10 creative nam
 
 📝 *Examples:*
 • "A sustainable fashion brand using recycled materials"
-• "A vegan restaurant serving healthy plant-based meals"  
+• "A vegan restaurant serving healthy plant-based meals"
 • "A tech startup creating AI-powered tools for small businesses"
 
 💡 *Tips:*
@@ -115,13 +119,9 @@ Simply send me a description of your business, and I'll generate 10 creative nam
 *Ready to start?* Just describe your business! 🎯
 """
 
-    await update.message.reply_text(
-        welcome_message,
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text(welcome_message, parse_mode='Markdown')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a help message."""
     help_text = """
 🆘 *How to use this bot:*
 
@@ -147,21 +147,16 @@ The more detailed your description, the better the names!
 
 ❗ *Need help?* Just describe your business and I'll do the rest!
 """
-
-    await update.message.reply_text(
-        help_text,
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text(help_text, parse_mode='Markdown')
 
 async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send example business descriptions."""
     examples_text = """
 📋 *Example Business Descriptions:*
 
 1️⃣ *Eco-Fashion*
 "Sustainable fashion brand creating eco-friendly clothing from recycled materials, targeting environmentally conscious millennials"
 
-2️⃣ *Vegan Restaurant*  
+2️⃣ *Vegan Restaurant*
 "Plant-based restaurant serving healthy, organic, and delicious vegan meals in a cozy atmosphere"
 
 3️⃣ *Tech Startup*
@@ -175,14 +170,9 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💡 *Copy one of these or create your own!*
 """
-
-    await update.message.reply_text(
-        examples_text,
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text(examples_text, parse_mode='Markdown')
 
 async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send about message."""
     about_text = """
 🤖 *About This Bot*
 
@@ -207,14 +197,9 @@ Forward this bot to friends who need business name ideas!
 
 Made with ❤️ for entrepreneurs and creators!
 """
-
-    await update.message.reply_text(
-        about_text,
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text(about_text, parse_mode='Markdown')
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle business description messages."""
     description = update.message.text.strip()
 
     if not HUGGINGFACE_API_KEY or HUGGINGFACE_API_KEY == 'hf_YOUR_TOKEN_HERE':
@@ -248,18 +233,18 @@ Here are 10 creative business names for "{description}":
 
         if names_list:
             response_text = "✨ *Your Business Name Ideas:*\n\n"
-            
+
             for idx, name_data in enumerate(names_list[:10], 1):
                 name = name_data.get('name', 'Unknown')
                 reasoning = name_data.get('reasoning', '')
-                
+
                 response_text += f"{idx}. *{name}*\n"
                 if reasoning:
                     response_text += f"   💡 {reasoning}\n"
                 response_text += "\n"
-            
+
             response_text += "\n💡 Try different descriptions for more ideas!"
-            
+
             keyboard = [
                 [
                     InlineKeyboardButton("🔄 Try Again", callback_data="retry"),
@@ -271,7 +256,7 @@ Here are 10 creative business names for "{description}":
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            
+
             await thinking_message.edit_text(
                 response_text,
                 parse_mode='Markdown',
@@ -291,16 +276,15 @@ Here are 10 creative business names for "{description}":
         )
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle button presses."""
     query = update.callback_query
     await query.answer()
-    
+
     if query.data == "retry":
         await query.edit_message_text(
             "🔄 Ready to try again! Send me a new business description.",
             parse_mode='Markdown'
         )
-    
+
     elif query.data == "examples":
         examples_text = """
 📋 *Example Descriptions:*
@@ -312,11 +296,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💡 Copy one and send it to me!
 """
-        await query.edit_message_text(
-            examples_text,
-            parse_mode='Markdown'
-        )
-    
+        await query.edit_message_text(examples_text, parse_mode='Markdown')
+
     elif query.data == "help":
         help_text = """
 🆘 *Quick Help:*
@@ -330,11 +311,8 @@ Commands:
 /examples - Examples
 /about - About the bot
 """
-        await query.edit_message_text(
-            help_text,
-            parse_mode='Markdown'
-        )
-    
+        await query.edit_message_text(help_text, parse_mode='Markdown')
+
     elif query.data == "about":
         about_text = """
 🤖 *Business Name Generator Bot*
@@ -346,37 +324,55 @@ Free to use
 
 Ready? Describe your business!
 """
-        await query.edit_message_text(
-            about_text,
-            parse_mode='Markdown'
-        )
+        await query.edit_message_text(about_text, parse_mode='Markdown')
 
-def main():
-    """Start the bot."""
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.error(f"Update {update} caused error {context.error}")
     try:
-        # Try the new way (for newer versions)
-        application = Application.builder().token(TELEGRAM_TOKEN).build()
-    except AttributeError:
-        # Fallback for older versions
-        try:
-            from telegram.ext import Updater
-            updater = Updater(TELEGRAM_TOKEN)
-            application = updater.application
-        except Exception as e:
-            print(f"Error creating application: {e}")
-            # Final fallback
-            application = Application.builder().token(TELEGRAM_TOKEN).build()
+        if update and update.effective_message:
+            await update.effective_message.reply_text("❌ An error occurred. Please try again.")
+    except Exception:
+        pass
 
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("examples", examples_command))
-    application.add_handler(CommandHandler("about", about_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    application.add_handler(CallbackQueryHandler(button_callback))
+# ============================================================
+# 🚀 BOT STARTUP (fixes Python 3.14 event loop crash)
+# ============================================================
+async def run_bot_async():
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    print("🤖 Business Name Generator Bot is running!")
-    print("📱 Find your bot on Telegram and send /start")
-    application.run_polling()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("examples", examples_command))
+    app.add_handler(CommandHandler("about", about_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CallbackQueryHandler(button_callback))
+    app.add_error_handler(error_handler)
+
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True
+    )
+
+    logger.info("✅ Business Name Generator Bot is polling and ready!")
+
+    while True:
+        await asyncio.sleep(1)
+
+def run_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_bot_async())
+
+# ============================================================
+# 🌐 FLASK - KEEPS RENDER WEB SERVICE ALIVE (health check port)
+# ============================================================
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def health_check():
+    return "🤖 Business Name Generator Bot is running!", 200
 
 if __name__ == '__main__':
     if not TELEGRAM_TOKEN:
@@ -385,5 +381,11 @@ if __name__ == '__main__':
     if not HUGGINGFACE_API_KEY:
         print("❌ ERROR: HUGGINGFACE_API_KEY not found in environment variables!")
         exit(1)
+
     print("✅ All tokens found. Starting bot...")
-    main()
+
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+
+    port = int(os.environ.get("PORT", 5000))
+    flask_app.run(host="0.0.0.0", port=port)
